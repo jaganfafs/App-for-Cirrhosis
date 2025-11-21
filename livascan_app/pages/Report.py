@@ -1,5 +1,5 @@
 import streamlit as st
-from PIL import Image
+import matplotlib.pyplot as plt
 
 st.set_page_config(page_title="Patient Report", page_icon="📄", layout="wide")
 
@@ -13,10 +13,17 @@ st.markdown("<h2 class='section-title'>Patient Report</h2>", unsafe_allow_html=T
 result = st.session_state.get("ai_result", None)
 
 if result is None:
-    st.error("No AI result found. Please upload scans first.")
+    st.error("Please perform AI Scan first.")
     st.stop()
 
 labels = ["Healthy", "Borderline", "Cirrhosis"]
+
 st.markdown(f"### Final Classification: **{labels[result]}**")
 
-st.markdown("Downloadable version coming soon...")
+# Simple pie chart
+fig, ax = plt.subplots(figsize=(4, 4))
+ax.pie([1], labels=[labels[result]], autopct='%1.1f%%')
+st.pyplot(fig)
+
+st.info("PDF report feature will be added soon.")
+
