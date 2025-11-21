@@ -1,62 +1,54 @@
-# livascan_app/utils.py
+import numpy as np
+import nibabel as nib
 import os
 import tempfile
-from pathlib import Path
-import joblib
-import numpy as np
-import matplotlib.pyplot as plt
+from skimage.transform import resize
 
-BASE_DIR = Path(__file__).resolve().parent
+# ---------------------------
+# Save UploadedFile to temp
+# ---------------------------
+def save_uploaded_file(uploaded_file):
+    """Save uploaded Streamlit file to a temporary path."""
+    if uploaded_file is None:
+        return None
+    suffix = uploaded_file.name.split(".")[-1]
+    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix="." + suffix)
+    temp_file.write(uploaded_file.getvalue())
+    temp_file.close()
+    return temp_file.name
 
-def save_uploadedfile(uploaded_file, dst_folder=None):
-    """
-    Save a Streamlit uploaded_file (UploadedFile) to a temporary path and return the path.
-    """
-    if dst_folder is None:
-        dst_folder = tempfile.gettempdir()
-    os.makedirs(dst_folder, exist_ok=True)
-    out_path = os.path.join(dst_folder, uploaded_file.name)
-    # Write bytes to disk
-    with open(out_path, "wb") as f:
-        f.write(uploaded_file.getbuffer())
-    return out_path
-
-def load_rf_model(model_rel_path="model/RandomForest_Cirrhosis.pkl"):
-    """
-    Try to load the RandomForest model. Return model or None + error string.
-    """
-    model_path = BASE_DIR / model_rel_path
-    if not model_path.exists():
-        return None, f"Model file not found at {model_path}"
+# ---------------------------
+# Load NIfTI safely
+# ---------------------------
+def load_nifti(path):
     try:
-        mdl = joblib.load(model_path)
-        return mdl, None
+        return nib.load(path).get_fdata()
     except Exception as e:
-        return None, f"Error loading RF model: {e}"
+        print(f"Error loading NIFTI: {e}")
+        return None
 
-def demo_result(n_slices):
+# --------------------------------------
+# Extract a SINGLE feature vector (1536)
+# --------------------------------------
+def extract_features(volume, target_size=(32, 48)):
     """
-    Create a demo fallback result dict (used if RF model fails or incompatibility).
+    Resize each slice to 32×48 and flatten → 1536 features.
+    Use only the middle slice.
     """
-    # simplistic simulated probabilities
-    rng = np.random.RandomState(42)
-    probs = rng.uniform(0.2, 0.8, size=n_slices)
-    return probs
+    if volume is None:
+        return None
 
-def bar_plot_counts(counts, labels=("Cirrhosis", "Healthy")):
-    """
-    Return a matplotlib figure with counts bar chart.
-    counts: dict or sequence with two values
-    """
-    # Ensure sequence
-    if isinstance(counts, dict):
-        vals = [counts.get(labels[0], 0), counts.get(labels[1], 0)]
-    else:
-        vals = list(counts)
-    fig, ax = plt.subplots(figsize=(5, 3))
-    ax.bar(labels, vals)
-    ax.set_ylabel("Slices")
-    ax.set_title("Slice-wise distribution")
-    ax.set_ylim(0, max(1, max(vals) * 1.2))
-    return fig
+    mid_slice = volume[:, :, volume.shape[2] // 2]
+    mid_slice = resize(mid_slice, target_size, anti_aliasing=True)
+    return mid_slice.flatten().reshape(1, -1)
+
+# ---------------------------
+# Slice distribution
+# ---------------------------
+def compute_slice_distribution(volume):
+    """Return dummy healthy/cirrhotic distribution since RF model is slice-based."""
+    total = volume.shape[2]
+    healthy = int(total * 0.70)
+    cirrhosis = total - healthy
+    return healthy, cirrhosis
 
