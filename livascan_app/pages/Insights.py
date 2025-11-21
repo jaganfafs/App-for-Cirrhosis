@@ -1,38 +1,42 @@
 import streamlit as st
+import os
 
 st.set_page_config(page_title="Insights", page_icon="📊", layout="wide")
 
-with open("style.css") as css:
-    st.markdown(f"<style>{css.read()}</style>", unsafe_allow_html=True)
+css_path = "livascan_app/style.css"
+if os.path.exists(css_path):
+    with open(css_path) as css:
+        st.markdown(f"<style>{css.read()}</style>", unsafe_allow_html=True)
 
-st.image("livascan_app/assets/insights.png", use_column_width=True) 
+ins_img = "livascan_app/assets/insights.png"
+if os.path.exists(ins_img):
+    st.image(ins_img, use_column_width=True)
 
 st.markdown("<h2 class='section-title'>Clinical Insights</h2>", unsafe_allow_html=True)
 
 result = st.session_state.get("ai_result", None)
-
 if result is None:
-    st.warning("Please run the AI scan first.")
+    st.warning("No AI result found. Run the AI Scan first.")
+    if st.button("Go to Scan"):
+        st.switch_page("pages/Scan.py")
     st.stop()
 
 labels = ["Healthy Liver", "Borderline Condition", "Cirrhosis Suspected"]
-category = labels[result]
+category = labels[result] if result in [0,1,2] else "Unknown"
 
 st.markdown(f"### 🚑 Condition Detected: **{category}**")
 
 st.markdown("""
-#### 🩺 Clinical Interpretation
-
-1. MRI liver segmentation reveals tissue characteristics consistent with the detected condition.
-2. T1 and T2 intensity variations have been analyzed for fibrosis patterns.
-3. No major architectural distortion is seen in healthy cases.
-4. Borderline cases show mild irregularities requiring clinical correlation.
-5. Cirrhosis-suspected cases show nodular margins and regenerative pattern changes.
-6. AI analysis helps assist radiologists—not replace clinical judgment.
-7. Please consult a hepatologist for appropriate medical evaluation.
+#### 🩺 Medical Interpretation - Seven key points
+1. MRI texture and intensity features indicate the detected condition.
+2. Analysis uses paired T1/T2 features to assess fibrosis-related changes.
+3. A healthy liver shows uniform parenchymal signal and no nodularity.
+4. Borderline cases demonstrate subtle signal irregularities—recommend follow-up tests.
+5. Cirrhosis-suspected shows architectural distortion and nodular patterns on imaging.
+6. AI findings are probabilistic — correlate with labs (LFTs), elastography, and clinical exam.
+7. Follow-up by hepatology is recommended for management and possible biopsy if indicated.
 """)
 
-if st.button("View Report"):
+if st.button("View Patient Report"):
     st.switch_page("pages/Report.py")
-
 
