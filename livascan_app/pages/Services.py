@@ -1,7 +1,6 @@
 import streamlit as st
-from PIL import Image
 
-st.set_page_config(page_title="Our Services", page_icon="🧪", layout="wide")
+st.set_page_config(page_title="Services", page_icon="🧪", layout="wide")
 
 with open("style.css") as css:
     st.markdown(f"<style>{css.read()}</style>", unsafe_allow_html=True)
@@ -23,3 +22,4 @@ with col2:
 with col3:
     if st.button("Patient Report"):
         st.switch_page("pages/Report.py")
+
