@@ -1,32 +1,62 @@
 # livascan_app/utils.py
 import os
 import tempfile
-import nibabel as nib
+from pathlib import Path
+import joblib
+import numpy as np
+import matplotlib.pyplot as plt
 
-ROOT = os.path.dirname(os.path.dirname(__file__))  # repo/livascan_app
+BASE_DIR = Path(__file__).resolve().parent
 
-def save_uploaded_file(uploaded_file, dest_folder=None):
+def save_uploadedfile(uploaded_file, dst_folder=None):
     """
-    Save a Streamlit UploadedFile to a temp path and return the file path.
+    Save a Streamlit uploaded_file (UploadedFile) to a temporary path and return the path.
     """
-    if dest_folder is None:
-        dest_folder = tempfile.gettempdir()
-    os.makedirs(dest_folder, exist_ok=True)
-    out_path = os.path.join(dest_folder, uploaded_file.name)
-    # uploaded_file is a stream-like object - read and write bytes
+    if dst_folder is None:
+        dst_folder = tempfile.gettempdir()
+    os.makedirs(dst_folder, exist_ok=True)
+    out_path = os.path.join(dst_folder, uploaded_file.name)
+    # Write bytes to disk
     with open(out_path, "wb") as f:
-        f.write(uploaded_file.getbuffer())  # safe and efficient
+        f.write(uploaded_file.getbuffer())
     return out_path
 
-def load_nifti_from_uploaded(uploaded_file):
+def load_rf_model(model_rel_path="model/RandomForest_Cirrhosis.pkl"):
     """
-    Save uploaded file to tmp and load as nibabel image.
-    Returns numpy array (fdata).
+    Try to load the RandomForest model. Return model or None + error string.
     """
-    path = save_uploaded_file(uploaded_file)
-    img = nib.load(path)
-    data = img.get_fdata().astype("float32")
-    return data, path
+    model_path = BASE_DIR / model_rel_path
+    if not model_path.exists():
+        return None, f"Model file not found at {model_path}"
+    try:
+        mdl = joblib.load(model_path)
+        return mdl, None
+    except Exception as e:
+        return None, f"Error loading RF model: {e}"
 
-def project_root():
-    return ROOT
+def demo_result(n_slices):
+    """
+    Create a demo fallback result dict (used if RF model fails or incompatibility).
+    """
+    # simplistic simulated probabilities
+    rng = np.random.RandomState(42)
+    probs = rng.uniform(0.2, 0.8, size=n_slices)
+    return probs
+
+def bar_plot_counts(counts, labels=("Cirrhosis", "Healthy")):
+    """
+    Return a matplotlib figure with counts bar chart.
+    counts: dict or sequence with two values
+    """
+    # Ensure sequence
+    if isinstance(counts, dict):
+        vals = [counts.get(labels[0], 0), counts.get(labels[1], 0)]
+    else:
+        vals = list(counts)
+    fig, ax = plt.subplots(figsize=(5, 3))
+    ax.bar(labels, vals)
+    ax.set_ylabel("Slices")
+    ax.set_title("Slice-wise distribution")
+    ax.set_ylim(0, max(1, max(vals) * 1.2))
+    return fig
+
