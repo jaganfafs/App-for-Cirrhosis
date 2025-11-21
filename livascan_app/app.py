@@ -1,50 +1,50 @@
+# livascan_app/app.py
 import streamlit as st
+from pathlib import Path
 from PIL import Image
-import os
 
-# ------------------------------
-# STREAMLIT PAGE CONFIG
-# ------------------------------
-st.set_page_config(
-    page_title="LivaScan AI",
-    page_icon="🩺",
-    layout="wide"
+BASE_DIR = Path(__file__).resolve().parent
+
+st.set_page_config(page_title="LivaScan AI", page_icon="🩺", layout="wide")
+
+# Load CSS (use path relative to package root)
+css_path = BASE_DIR / "style.css"
+if css_path.exists():
+    with open(css_path, "r", encoding="utf-8") as f:
+        st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+else:
+    st.warning("style.css not found - continuing without custom styling.")
+
+# Simple sidebar navigation (Streamlit Pages also work but keep sidebar for quick nav)
+st.sidebar.title("LivaScan AI")
+st.sidebar.markdown("Advanced cirrhosis detection from paired liver MRI")
+
+# Show a simple content on the root page, link to Home page in pages/
+st.title("LivaScan AI – Advanced Cirrhosis Detection")
+st.write(
+    "A next-generation AI companion that analyzes paired liver MRI scans to support early detection of cirrhosis."
 )
 
-# ------------------------------
-# LOAD CSS FROM CORRECT PATH
-# ------------------------------
-css_path = "livascan_app/style.css"
-if os.path.exists(css_path):
-    with open(css_path) as css:
-        st.markdown(f"<style>{css.read()}</style>", unsafe_allow_html=True)
-else:
-    st.error(f"❌ CSS file not found at: {css_path}")
-
-# ------------------------------
-# HERO SECTION
-# ------------------------------
-
-col1, col2 = st.columns([1.2, 1])
-
+col1, col2 = st.columns([1.5, 1])
 with col1:
-    st.markdown("<h1 class='title'>LivaScan AI – Advanced Cirrhosis Detection</h1>", unsafe_allow_html=True)
-
-    st.markdown("""
-    <p class='description'>
-    A next-generation AI companion that analyzes paired liver MRI scans to support early detection of cirrhosis 
-    and guide clinical decision-making.
-    </p>
-    """, unsafe_allow_html=True)
-
-    if st.button("GET STARTED", key="start"):
-        st.switch_page("pages/Services.py")
+    st.markdown(
+        "<h2 style='margin-bottom:0.25rem'>Welcome</h2>"
+        "<p style='color:#666'>Click Get Started to go to the Home (UI) where you can begin.</p>",
+        unsafe_allow_html=True,
+    )
+    if st.button("GET STARTED"):
+        # Streamlit Pages uses the pages/ directory. If you want to route, use link text to the page
+        st.markdown("Go to the **Home** item in the left sidebar (or open `/Home` page).")
 
 with col2:
-    hero_path = "livascan_app/assets/hero.png"
-    if os.path.exists(hero_path):
-        hero = Image.open(hero_path)
-        st.image(hero, use_column_width=True)
+    # Show hero image if present
+    hero = BASE_DIR / "assets" / "hero.png"
+    if hero.exists():
+        img = Image.open(hero)
+        st.image(img, use_column_width=True)
     else:
-        st.error(f"❌ Hero image not found at: {hero_path}")
+        st.info("Put hero.png into livascan_app/assets to show the banner.")
+
+st.markdown("---")
+st.caption("Use the left sidebar to navigate: Home, Scan, Insights, Report, Services.")
 
