@@ -1,25 +1,37 @@
 .title {
     font-size: 42px;
-    font-weight: 700;
+    font-weight: 800;
 }
 
 .description {
     font-size: 18px;
-    opacity: 0.8;
+    opacity: 0.85;
 }
 
 .section-title {
     text-align: center;
     font-size: 36px;
-    font-weight: 700;
+    font-weight: 800;
     margin-bottom: 20px;
 }
 
-button {
-    border-radius: 30px !important;
+.stButton>button {
+    background-color: #008CFF !important;
+    color: white !important;
+    padding: 14px 24px;
+    border-radius: 30px;
+    border: none;
+    font-size: 16px;
+    transition: 0.2s ease-in-out;
 }
 
-/* Hide default Streamlit footer + menu */
+.stButton>button:hover {
+    background-color: #006edc !important;
+    transform: scale(1.05);
+}
+
+/* Hide Streamlit footer/menu */
 #MainMenu {visibility: hidden;}
 footer {visibility: hidden;}
 header {visibility: hidden;}
+
