@@ -7,7 +7,7 @@ with open("style.css") as css:
 
 st.markdown("<h1 class='section-title'>Our Services</h1>", unsafe_allow_html=True)
 
-st.image("assets/services.png", use_column_width=True)
+st.image("livascan_app/assets/services.png", use_column_width=True)
 
 col1, col2, col3 = st.columns(3)
 
@@ -22,4 +22,5 @@ with col2:
 with col3:
     if st.button("Patient Report"):
         st.switch_page("pages/Report.py")
+
 
