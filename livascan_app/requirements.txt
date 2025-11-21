@@ -1,0 +1,8 @@
+streamlit
+numpy
+matplotlib
+nibabel
+scikit-learn
+opencv-python-headless
+torch
+timm
