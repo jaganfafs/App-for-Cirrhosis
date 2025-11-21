@@ -8,7 +8,7 @@ st.set_page_config(
 )
 
 # Load CSS
-with open("style.css") as css:
+with open("livascan_app/style.css") as css:
     st.markdown(f"<style>{css.read()}</style>", unsafe_allow_html=True)
 
 # HERO SECTION
@@ -29,3 +29,4 @@ with col1:
 with col2:
     hero = Image.open("assets/hero.png")
     st.image(hero, use_column_width=True)
+
