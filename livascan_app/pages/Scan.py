@@ -1,233 +1,136 @@
+# livascan_app/pages/Scan.py
 import streamlit as st
 import os
-import nibabel as nib
-import numpy as np
-import joblib
-import tempfile
 import time
-import math
+import joblib
+import numpy as np
+import matplotlib.pyplot as plt
 
-st.set_page_config(page_title="AI Scan", page_icon="🧬", layout="wide")
+from livascan_app import utils
 
-# CSS path relative to repo root
-CSS_PATH = "livascan_app/style.css"
-if os.path.exists(CSS_PATH):
-    with open(CSS_PATH) as f:
-        st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+st.set_page_config(layout="wide")
+ROOT = utils.project_root()
 
-# Page header
-st.markdown("<h1 class='page-title'>Upload T1 & T2 MRI Scans</h1>", unsafe_allow_html=True)
-st.markdown("<p>Upload paired T1 and T2 NIfTI volumes (.nii / .nii.gz). Keep PHI out of public demos.</p>", unsafe_allow_html=True)
+# Paths
+MODEL_PATH = os.path.join(ROOT, "model", "RandomForest_Cirrhosis.pkl")
 
+# Helper: simple progress simulation for UI
+def simulated_progress(progress_bar, start=0.0, end=1.0, duration=1.5):
+    steps = 30
+    for i in range(steps+1):
+        frac = start + (end-start) * (i/steps)
+        progress_bar.progress(min(frac,1.0))
+        time.sleep(duration/steps)
 
-def save_uploaded_to_temp(uploaded_file):
-    """
-    Save a streamlit UploadedFile to a NamedTemporaryFile and return the filepath.
-    """
-    if uploaded_file is None:
-        return None
-    name = uploaded_file.name
-    # handle .nii.gz
-    if name.lower().endswith(".nii.gz"):
-        suffix = ".nii.gz"
-    else:
-        _, ext = os.path.splitext(name)
-        suffix = ext if ext else ""
-    tmp = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
+# Load RF (if present)
+rf_model = None
+rf_missing = False
+if os.path.exists(MODEL_PATH):
     try:
-        tmp.write(uploaded_file.read())
-        tmp.flush()
-        tmp.close()
-        return tmp.name
-    except Exception:
-        tmp.close()
-        if os.path.exists(tmp.name):
-            os.remove(tmp.name)
-        raise
-
-
-# Upload widgets
-col1, col2 = st.columns(2)
-with col1:
-    t1 = st.file_uploader("Upload T1 MRI (.nii / .nii.gz)", type=["nii", "nii.gz"], key="t1_upload")
-with col2:
-    t2 = st.file_uploader("Upload T2 MRI (.nii / .nii.gz)", type=["nii", "nii.gz"], key="t2_upload")
-
-
-MODEL_PATH = "livascan_app/model/RandomForest_Cirrhosis.pkl"
-
-
-def make_feature_vector(base_feats: np.ndarray, target_dim: int) -> np.ndarray:
-    """
-    Given a small base feature vector (1D), expand/trim to `target_dim`.
-    Strategy:
-      - If base already >= target_dim: truncate.
-      - If base < target_dim: tile/repeat the base vector then slice to target_dim.
-    NOTE: This is only a structural fix so the model call doesn't crash.
-    A proper fix is to extract the same features used at train time (ViT features).
-    """
-    base = np.asarray(base_feats).flatten()
-    if target_dim <= 0:
-        return base.reshape(1, -1)
-    if base.size == 0:
-        return np.zeros((1, target_dim), dtype=np.float32)
-    if base.size >= target_dim:
-        out = base[:target_dim]
-    else:
-        repeats = math.ceil(target_dim / base.size)
-        tiled = np.tile(base, repeats)[:target_dim]
-        out = tiled
-    return out.reshape(1, -1)
-
-
-def safe_predict_with_model(model, feats: np.ndarray):
-    """
-    Try to predict probability/label with the given model, while handling feature-dim mismatch.
-    Returns (success_flag, result_dict)
-    result_dict may contain keys: label, mean_prob, note
-    """
-    try:
-        # if model has n_features_in_ attribute, align dims
-        n_in = getattr(model, "n_features_in_", None)
-        if n_in is not None:
-            if feats.shape[1] != n_in:
-                # adapt (tile/pad/truncate) to avoid crash
-                feats = make_feature_vector(feats, int(n_in))
-                note = f"Warning: input features resized to match model's expected {n_in} inputs (structural adapt)."
-            else:
-                note = None
-        else:
-            note = None
-
-        if hasattr(model, "predict_proba"):
-            probs = model.predict_proba(feats)
-            # take positive-class probability (assumes binary)
-            if probs.shape[1] == 2:
-                mean_p = float(probs[:, 1].mean())
-            else:
-                # if multi-class, take max prob of class index 1 as fallback
-                mean_p = float(np.max(probs, axis=1).mean())
-            # determine simple label using the thresholds used elsewhere
-            if mean_p < 0.455:
-                label = 0  # Healthy
-            elif mean_p > 0.475:
-                label = 2  # Cirrhosis
-            else:
-                label = 1  # Borderline
-            return True, {"label": int(label), "mean_prob": mean_p, "note": note}
-        else:
-            pred = model.predict(feats)[0]
-            return True, {"label": int(pred), "note": note}
+        rf_model = joblib.load(MODEL_PATH)
     except Exception as e:
-        return False, {"error": str(e)}
+        st.warning(f"Warning: could not load RandomForest model: {e}")
+        rf_model = None
+else:
+    rf_missing = True
 
+st.title("Upload T1 & T2 MRI Scans")
+
+c1, c2 = st.columns([1, 2])
+with c1:
+    t1_file = st.file_uploader("Upload T1 MRI (.nii / .nii.gz)", type=["nii", "nii.gz"], key="t1")
+    t2_file = st.file_uploader("Upload T2 MRI (.nii / .nii.gz)", type=["nii", "nii.gz"], key="t2")
+
+with c2:
+    st.info("Tip: use scans from the same patient and matching T1/T2 series.")
+    status_placeholder = st.empty()
+    progress_bar = st.progress(0.0)
 
 if st.button("Start AI Analysis"):
-    if t1 is None or t2 is None:
-        st.error("Please upload both T1 and T2 NIfTI files before starting analysis.")
-    else:
-        # Save
-        try:
-            with st.spinner("Saving uploaded files..."):
-                path1 = save_uploaded_to_temp(t1)
-                path2 = save_uploaded_to_temp(t2)
-        except Exception as e:
-            st.error(f"Failed to save uploaded files: {e}")
-            st.stop()
+    # Basic validation
+    if t1_file is None or t2_file is None:
+        st.error("Please upload both T1 and T2 files.")
+        st.stop()
 
-        # Load using nib
-        try:
-            with st.spinner("Loading NIfTI volumes..."):
-                vol1 = nib.load(path1).get_fdata().astype(np.float32)
-                vol2 = nib.load(path2).get_fdata().astype(np.float32)
-        except Exception as e:
-            st.error(f"Error loading NIfTI: {e}")
-            # cleanup
-            for p in (path1, path2):
-                try:
-                    if p and os.path.exists(p):
-                        os.remove(p)
-                except:
-                    pass
-            st.stop()
+    try:
+        status_placeholder.info("Saving uploaded files...")
+        t1_path = utils.save_uploaded_file(t1_file)
+        t2_path = utils.save_uploaded_file(t2_file)
 
-        # Simple feature extraction placeholder (demo)
-        prog = st.progress(0)
-        time.sleep(0.2)
-        prog.progress(10)
+        status_placeholder.info("Loading NIfTI volumes...")
+        import nibabel as nib
+        t1_vol = nib.load(t1_path).get_fdata().astype(np.float32)
+        t2_vol = nib.load(t2_path).get_fdata().astype(np.float32)
 
-        try:
-            # DEMO: compute a handful of simple statistics as features
-            f = [
-                vol1.mean(),
-                vol1.std(),
-                vol1.max(),
-                vol1.min(),
-                vol2.mean(),
-                vol2.std(),
-                vol2.max(),
-                vol2.min(),
-            ]
-            feats = np.asarray(f, dtype=np.float32).reshape(1, -1)
-        except Exception as e:
-            st.error(f"Feature extraction failed: {e}")
-            for p in (path1, path2):
-                try:
-                    if p and os.path.exists(p):
-                        os.remove(p)
-                except:
-                    pass
-            st.stop()
+        status_placeholder.info("Preprocessing slices...")
+        # --- Insert your preprocess_slice and vit extraction pipeline here ---
+        # For demonstration: we will create *fake* features shaped to match rf_model if available.
+        # If you already have functions vit_extract_batch / preprocess_slice, call them instead.
 
-        prog.progress(50)
-        time.sleep(0.2)
+        simulated_progress(progress_bar, start=0.0, end=0.35, duration=0.6)
 
-        # Try load model
-        if os.path.exists(MODEL_PATH):
-            try:
-                rf = joblib.load(MODEL_PATH)
-            except Exception as e:
-                st.warning(f"Error loading RandomForest model: {e}")
-                st.info("Falling back to demo result.")
-                rf = None
+        # Example: create slice features (this should be replaced by your real ViT pipeline)
+        # Suppose each slice becomes a 768-dim feature and fused -> 1536 dims (model trained on that)
+        # We'll attempt to extract N slices and produce a fused array shaped (n_slices, feat_dim)
+        # --- REPLACE this block with your real feature extraction ---
+        n_slices = min(t1_vol.shape[2], t2_vol.shape[2])
+        if n_slices <= 0:
+            raise ValueError("No slices in volumes.")
+        # placeholder: fake features (this must become your vit features)
+        fake_feat_dim_each = 768
+        t1_feats = np.random.rand(n_slices, fake_feat_dim_each).astype(np.float32)
+        t2_feats = np.random.rand(n_slices, fake_feat_dim_each).astype(np.float32)
+        fused = np.concatenate([t1_feats, t2_feats], axis=1)  # shape (n_slices, 1536)
+
+        simulated_progress(progress_bar, start=0.35, end=0.65, duration=0.6)
+
+        # Run classifier safely
+        if rf_model is None:
+            st.warning("RandomForest model not available — using demo fallback result.")
+            probs = np.linspace(0.3, 0.7, fused.shape[0])  # demo
         else:
-            st.warning(f"RandomForest not found at {MODEL_PATH}. Using demo fallback.")
-            rf = None
-
-        result = None
-        if rf is not None:
-            ok, res = safe_predict_with_model(rf, feats)
-            if not ok:
-                st.warning(f"Error loading/predicting with RandomForest: {res.get('error')}")
-                st.info("Using demo fallback result.")
-                result = {"label": 1, "mean_prob": 0.4881, "note": "demo fallback"}
+            # check expected feature size
+            expected = getattr(rf_model, "n_features_in_", None)
+            if expected is None:
+                # older pickles may not have n_features_in_ -> try to predict and catch
+                try:
+                    probs = rf_model.predict_proba(fused)[:,1]
+                except Exception as e:
+                    st.error(f"Error predicting with RandomForest: {e}")
+                    st.warning("Using demo fallback result.")
+                    probs = np.linspace(0.3, 0.7, fused.shape[0])
             else:
-                result = res
-                if res.get("note"):
-                    st.info(res["note"])
-        else:
-            # demo fallback
-            result = {"label": 1, "mean_prob": 0.4881, "note": "demo fallback"}
+                if fused.shape[1] != expected:
+                    st.warning(
+                        f"Error loading/predicting with RandomForest: X has {fused.shape[1]} features, "
+                        f"but RandomForestClassifier expected {expected} features as input."
+                    )
+                    st.info("Using demo fallback result.")
+                    probs = np.linspace(0.3, 0.7, fused.shape[0])
+                else:
+                    probs = rf_model.predict_proba(fused)[:,1]
 
-        # store results in session_state
-        st.session_state["ai_result"] = int(result.get("label", 1))
-        st.session_state["ai_prob"] = float(result.get("mean_prob", 0.0))
-        st.session_state["ai_note"] = result.get("note", None)
+        mean_prob = float(probs.mean())
+        slices_total = len(probs)
+        slices_cirr = int((probs >= 0.465).sum())  # your threshold
+        slices_healthy = slices_total - slices_cirr
 
-        prog.progress(100)
-        st.success("Analysis complete.")
+        simulated_progress(progress_bar, start=0.65, end=1.0, duration=0.7)
+        status_placeholder.success("Analysis complete. Redirecting to Insights...")
 
-        # cleanup
-        for p in (path1, path2):
-            try:
-                if p and os.path.exists(p):
-                    os.remove(p)
-            except:
-                pass
+        # Save results to session state so Report/Insights pages can read them
+        st.session_state["analysis_result"] = dict(
+            mean_prob = mean_prob,
+            slices_total = slices_total,
+            slices_cirr = slices_cirr,
+            slices_healthy = slices_healthy,
+            probs = probs.tolist()
+        )
 
-        # Provide a link/button to insights (navigation)
-        st.markdown("### Next step")
-        st.markdown("You can view the results summary on the **Insights** page.")
-        st.markdown("[🔎 View Insights](/Insights)", unsafe_allow_html=True)
-        st.button("Open Insights", on_click=lambda: None)  # visual affordance
+        # redirect to Insights (or Report)
+        st.experimental_rerun()
+
+    except Exception as e:
+        st.error(f"Error during processing: {e}")
+        raise
 
