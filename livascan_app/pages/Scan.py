@@ -9,7 +9,7 @@ st.set_page_config(page_title="AI Scan", page_icon="🧬", layout="wide")
 with open("style.css") as css:
     st.markdown(f"<style>{css.read()}</style>", unsafe_allow_html=True)
 
-st.image("assets/scan.png", use_column_width=True)
+st.image("livascan_app/assets/scan.png", use_column_width=True)
 
 st.markdown("<h2 class='section-title'>Upload T1 & T2 MRI Scans</h2>", unsafe_allow_html=True)
 
@@ -39,4 +39,5 @@ if st.button("Start AI Analysis"):
 
     st.success("Analysis complete! Redirecting...")
     st.switch_page("pages/Insights.py")
+
 
