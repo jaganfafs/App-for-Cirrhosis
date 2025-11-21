@@ -1,8 +1,8 @@
-streamlit
+streamlit>=1.20
 numpy
 matplotlib
-nibabel
+pillow
+joblib
 scikit-learn
-opencv-python-headless
-torch
-timm
+nibabel
+
