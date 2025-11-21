@@ -1,42 +1,54 @@
+# livascan_app/pages/Insights.py
 import streamlit as st
-import os
+from livascan_app import utils
+import numpy as np
+from matplotlib import pyplot as plt
+from pathlib import Path
 
-st.set_page_config(page_title="Insights", page_icon="📊", layout="wide")
+BASE_DIR = Path(__file__).resolve().parent.parent
+css_path = BASE_DIR / "style.css"
+if css_path.exists():
+    with open(css_path, "r", encoding="utf-8") as f:
+        st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 
-css_path = "livascan_app/style.css"
-if os.path.exists(css_path):
-    with open(css_path) as css:
-        st.markdown(f"<style>{css.read()}</style>", unsafe_allow_html=True)
+st.title("Clinical Insights")
 
-ins_img = "livascan_app/assets/insights.png"
-if os.path.exists(ins_img):
-    st.image(ins_img, use_column_width=True)
+res = st.session_state.get("last_result", None)
+if res is None:
+    st.info("No analysis results available yet. Please run analysis in the Scan page.")
+else:
+    mean_prob = res["mean_prob"]
+    st.subheader("Summary")
+    st.markdown(f"- Mean estimated cirrhosis probability: **{mean_prob*100:.2f}%**")
+    st.markdown(f"- Slices cirrhosis-leaning: **{res['slices_cirr']}**")
+    st.markdown(f"- Slices healthy-leaning: **{res['slices_healthy']}**")
 
-st.markdown("<h2 class='section-title'>Clinical Insights</h2>", unsafe_allow_html=True)
+    # Visual: donut percent
+    fig, ax = plt.subplots(figsize=(3,3))
+    sizes = [mean_prob, 1-mean_prob]
+    colors = ["#f97373", "#2b9af3"]
+    ax.pie(sizes, wedgeprops=dict(width=0.5), startangle=90, colors=colors)
+    ax.set(aspect="equal")
+    ax.text(0, 0, f"{mean_prob*100:.1f}%", ha="center", va="center", fontsize=14)
+    st.pyplot(fig)
 
-result = st.session_state.get("ai_result", None)
-if result is None:
-    st.warning("No AI result found. Run the AI Scan first.")
-    if st.button("Go to Scan"):
-        st.switch_page("pages/Scan.py")
-    st.stop()
+    # Detailed textual clinical insights (6-7 bullets)
+    st.markdown("### Clinical interpretation (short)")
+    # NOTE: these are templated suggestions for clinician review — not definitive diagnosis.
+    st.markdown(
+        """
+- 1. The AI estimates a **higher** probability of cirrhosis when mean probability > 0.47 — correlate clinically.
+- 2. Consider liver function tests (LFTs) and elastography for quantitative fibrosis assessment.
+- 3. If symptoms (jaundice, ascites, variceal bleeding) are present — urgent specialist review is recommended.
+- 4. Imaging patterns suggestive of cirrhosis include nodular surface, volume redistribution and regenerative nodules.
+- 5. Consider additional contrast-enhanced MRI or biopsy if imaging and labs are discordant.
+- 6. If the AI result is borderline, schedule follow-up imaging in 3–6 months or multimodal assessment.
+- 7. Always correlate with clinical history, alcohol / viral hepatitis risk factors, and biochemical tests.
+"""
+    )
 
-labels = ["Healthy Liver", "Borderline Condition", "Cirrhosis Suspected"]
-category = labels[result] if result in [0,1,2] else "Unknown"
-
-st.markdown(f"### 🚑 Condition Detected: **{category}**")
-
-st.markdown("""
-#### 🩺 Medical Interpretation - Seven key points
-1. MRI texture and intensity features indicate the detected condition.
-2. Analysis uses paired T1/T2 features to assess fibrosis-related changes.
-3. A healthy liver shows uniform parenchymal signal and no nodularity.
-4. Borderline cases demonstrate subtle signal irregularities—recommend follow-up tests.
-5. Cirrhosis-suspected shows architectural distortion and nodular patterns on imaging.
-6. AI findings are probabilistic — correlate with labs (LFTs), elastography, and clinical exam.
-7. Follow-up by hepatology is recommended for management and possible biopsy if indicated.
-""")
-
-if st.button("View Patient Report"):
-    st.switch_page("pages/Report.py")
+    # show small bar chart of slice counts
+    counts = {"Cirrhosis": res["slices_cirr"], "Healthy": res["slices_healthy"]}
+    fig2 = utils.bar_plot_counts(counts, labels=("Cirrhosis","Healthy"))
+    st.pyplot(fig2)
 
