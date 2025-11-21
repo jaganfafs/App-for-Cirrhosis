@@ -21,5 +21,6 @@ with col1:
         st.switch_page("pages/Services.py")
 
 with col2:
-    st.image("assets/hero.png", use_column_width=True)
+    st.image("livascan_app/assets/hero.png", use_column_width=True)
+
 
