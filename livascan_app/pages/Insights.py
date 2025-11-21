@@ -5,7 +5,7 @@ st.set_page_config(page_title="Insights", page_icon="📊", layout="wide")
 with open("style.css") as css:
     st.markdown(f"<style>{css.read()}</style>", unsafe_allow_html=True)
 
-st.image("assets/insights.png", use_column_width=True) 
+st.image("livascan_app/assets/insights.png", use_column_width=True) 
 
 st.markdown("<h2 class='section-title'>Clinical Insights</h2>", unsafe_allow_html=True)
 
@@ -34,4 +34,5 @@ st.markdown("""
 
 if st.button("View Report"):
     st.switch_page("pages/Report.py")
+
 
